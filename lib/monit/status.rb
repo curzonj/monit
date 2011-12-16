@@ -1,5 +1,5 @@
-require "curb"
 require "uri"
+require 'net/http'
 require "crack/xml"
 
 # A Ruby interface for Monit
@@ -9,7 +9,7 @@ module Monit
   class Status
     attr_reader :url, :hash, :xml, :server, :platform, :services
     attr_accessor :username, :auth, :host, :port, :ssl, :auth, :username
-    attr_writer :password
+    attr_writer :password, :response
     
     # Create a new instance of the status class with the given options
     # 
@@ -38,17 +38,14 @@ module Monit
     
     # Get the status from Monit.
     def get
-      c = Curl::Easy.new(self.url.to_s) do |curl|
-        if @auth
-          curl.password = @password
-          curl.username = @username
-        end
-        curl.headers["User-Agent"] = "Monit Ruby client #{Monit::VERSION}"
-      end
-      c.perform
-      
-      if c.response_code == 200
-        @xml = c.body_str
+      http = Net::HTTP.new(url.host, url.port)
+      request = Net::HTTP::Get.new(url.request_uri)
+      request.basic_auth(@username, @password) if @auth
+
+      @response = http.request(request)
+
+      if @response.code == '200'
+        @xml = @response.body
         return self.parse(@xml)
       else
         return false
